@@ -1,6 +1,7 @@
 package dataframe_test
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -37,6 +38,38 @@ func generateSeries(n, rep int) (data []series.Series) {
 		data = append(data, series.Bools(bs))
 		data = append(data, series.Floats(fs))
 		data = append(data, series.Strings(ss))
+	}
+	return
+}
+
+func generateNamedSeries(n, rep int) (data []series.Series) {
+	rand.Seed(100)
+	for j := 0; j < rep; j++ {
+		var is []int
+		var bs []bool
+		var fs []float64
+		var ss []string
+		for i := 0; i < n; i++ {
+			is = append(is, rand.Intn(n))
+		}
+		for i := 0; i < n; i++ {
+			fs = append(fs, rand.Float64())
+		}
+		for i := 0; i < n; i++ {
+			ss = append(ss, strconv.Itoa(rand.Int()))
+		}
+		for i := 0; i < n; i++ {
+			r := rand.Intn(2)
+			b := false
+			if r == 1 {
+				b = true
+			}
+			bs = append(bs, b)
+		}
+		data = append(data, series.New(is, series.Int, "col1"))    // series.Ints(is))
+		data = append(data, series.New(bs, series.Bool, "col2"))   //series.Bools(bs))
+		data = append(data, series.New(fs, series.Float, "col3"))  //series.Floats(fs))
+		data = append(data, series.New(ss, series.String, "col4")) //series.Strings(ss))
 	}
 	return
 }
@@ -263,5 +296,63 @@ func BenchmarkDataFrame_Elem(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkDataFrame_InnerJoin(b *testing.B) {
+	// use `benchtime` if required
+	// e.g.: go test -run=X -bench=InnerJoin -benchtime=100s
+	tests := []struct {
+		name     string
+		desc     string
+		df1      dataframe.DataFrame
+		df2      dataframe.DataFrame
+		keys     []string
+		expected string
+	}{
+		{
+			"InnerJoin_3_X_1",
+			"",
+			dataframe.New(
+				series.New([]string{"111", "222", "333"}, series.String, "id"),
+				series.New([]string{"aaron", "bey", "ryan"}, series.String, "name"),
+			),
+			dataframe.New(
+				series.New([]string{"222"}, series.String, "id"),
+				series.New([]string{"45"}, series.String, "age"),
+			),
+			[]string{"id"},
+			``,
+		},
+		{
+			"InnerJoin_10_X_10",
+			"",
+			dataframe.New(generateNamedSeries(10, 1)...),
+			dataframe.New(generateNamedSeries(10, 1)...),
+			[]string{"col1"},
+			``,
+		},
+		{
+			"InnerJoin_10k_X_10k",
+			"",
+			dataframe.New(generateNamedSeries(10000, 1)...),
+			dataframe.New(generateNamedSeries(10000, 1)...),
+			[]string{"col1"},
+			``,
+		},
+	}
+	for _, test := range tests {
+		var x, y int
+		// df := dataframe.New(generateSeries(1, 1)...)
+		// fmt.Println("df1\n", test.df1)
+		// fmt.Println("df2\n", test.df2)
+		b.Run(test.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				df := test.df1.InnerJoin(test.df2, test.keys...)
+				x, y = df.Dims()
+			}
+		})
+		// fmt.Println("df\n", df)
+		fmt.Println("Resulting df size = ", x, "X", y)
 	}
 }
